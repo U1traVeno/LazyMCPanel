@@ -1,0 +1,45 @@
+[build-system]
+requires = [
+    "setuptools>=61.2.0",
+    "wheel",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lazymc-panel"
+version = "0.1.0"
+authors = [
+    { name = "U1traVeno", email = "happ1less1917@gmail.com"},
+    { name = "V3n0", email = "happ1less1917@gmail.com"},
+]
+
+license = { file = "LICENSE" }
+description = "LMCP - A simple and easy to use Minecraft server management panel."
+readme = "README.md"
+requires-python = ">=3.12"
+
+dependencies = [
+    "typer[all]",
+    "rich",
+    "textual",
+    "pydantic",
+    "pydantic-settings",
+    "pyyaml",
+]
+
+[project.urls]
+Homepage = "https://github.com/U1traVeno/LazyMCPanel"
+Repository = "https://github.com/U1traVeno/LazyMCPanel"
+
+[project.scripts]
+lmcp = "lmcp.cli:app"
+
+[tool.setuptool]
+
+[tool.setuptool.package.find]
+where = ["src"]
+
+[tool.setuptool.package-data]
+lmcp = [
+    "assests/containers/java*/*"
+]

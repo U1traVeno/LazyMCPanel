@@ -76,3 +76,7 @@
 # 本项目未来将发布到PyPI
 pip install lazymc-panel
 ```
+
+## 快速开始 (Quick Start)
+
+[Quick-Start](docs/quick-start.md)
