@@ -1,0 +1,5 @@
+__version__ = "0.1.0"
+__title__ = "Lazy Minecraft Panel"
+__description__ = "A simple and easy to use Minecraft server management panel"
+__author__ = "U1traVeno"
+__email__ = "happ1less1917@gmail.com"
