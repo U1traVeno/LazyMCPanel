@@ -44,6 +44,17 @@ def main(
     if ctx.invoked_subcommand is None:
         _show_help()
         raise typer.Exit()
+    
+@app.command()
+def init(
+    help: bool = typer.Option(False, "--help", "-h", help="Show this message and exit."),
+    directory: str = typer.Option(".", "--directory", "-d", help="Directory to initialize the LMCP workspace.")
+):
+    """
+    Initialize the LMCP workspace.
+    """
+    initialize(help=help, directory=directory)
+
 
 def _show_version():
     """Show the version information of LMCP"""
@@ -83,13 +94,4 @@ def _show_help():
     
     console.print(help_panel)
 
-@app.command()
-def init(
-    help: bool = typer.Option(False, "--help", "-h", help="Show this message and exit."),
-    directory: str = typer.Option(".", "--directory", "-d", help="Directory to initialize the LMCP workspace.")
-):
-    """
-    Initialize the LMCP workspace.
-    """
-    initialize(help=help, directory=directory)
     

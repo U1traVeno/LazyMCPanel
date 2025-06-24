@@ -6,17 +6,11 @@ from lmcp.core.logger import logger
 
 def initialize(help: bool = False, directory: str = ".") -> None:
     """
-    Initialize the LMCP workspace.
+    Initialize the LMCP workspace with a minimal velocity cluster setup(without any servers).
     This function sets up the necessary environment for LMCP to run.
     """
     if help:
-        print("Usage: lmcp init [OPTIONS]")
-        print("Initialize the LMCP workspace.")
-        print("\nOptions:")
-        print("  --help, -h  Show this message and exit.")
-        print("  --directory, -d  Directory to initialize the LMCP workspace (default: current directory).")
-        typer.Exit()
-        raise typer.Exit()
+        _show_help()
     
     if not os.path.exists(directory):
         logger.step(f"Directory {directory} does not exist. Creating it.")
@@ -37,24 +31,36 @@ def initialize(help: bool = False, directory: str = ".") -> None:
     
     # Create configuration file
     logger.debug("Creating configuration file for LMCP.")
-    config_file = os.path.join(directory, '.lmcp', 'config.yaml')
-    if os.path.exists(config_file):
-        logger.warning(f"Configuration file already exists at {config_file}. Skipping creation.")
-    else:
-        logger.step(f"Creating configuration file at {config_file}.")
+    config_file = os.path.join(directory, 'lmcp.yaml')
+    if not os.path.exists(config_file):
         try:
             _create_config_file(config_file)
         except Exception as e:
             logger.error(f"Failed to create configuration file: {e}")
             raise typer.Exit(code=1) from e
-    
+    else:
+        logger.warning(f"Configuration file already exists at {config_file}. Skipping creation.")
+        
     logger.success("LMCP workspace initialized successfully.")
+
+def _show_help() -> None:
+    """
+    Show help information for the LMCP initialization command.
+    """
+    print("Usage: lmcp init [OPTIONS]")
+    print("Initialize the LMCP workspace.")
+    print("\nOptions:")
+    print("  --help, -h  Show this message and exit.")
+    print("  --directory, -d  Directory to initialize the LMCP workspace (default: current directory).")
+    typer.Exit()
+    raise typer.Exit()
 
 def _create_config_file(file: str) -> bool:
     """
     Create a default configuration file at the specified path.
     """
     with open(file, 'w') as f:
+        # Write default configuration content
         f.write("# TEST\n")
     logger.debug(f"Configuration file created at: {file}")
     
