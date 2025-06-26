@@ -1,5 +1,4 @@
 import os
-import logging
 import typer
 
 from lmcp.core.logger import logger

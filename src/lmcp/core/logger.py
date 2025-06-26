@@ -1,27 +1,32 @@
-from typing import Optional
+from typing import Optional, Union, Dict, Any, Tuple, Type
+from types import TracebackType
 from rich.console import Console
 from rich.logging import RichHandler
-from rich.text import Text
+from rich.table import Table
 import logging
-import sys
+
+# Type aliases for logging parameters
+_ExcInfoType = Union[None, bool, Tuple[Type[BaseException], BaseException, TracebackType], BaseException]
+LoggingExtraDict = Dict[str, Any]
 
 # Create a Rich console instance for logging
-console = Console(stderr=True)
+console: Console = Console(stderr=True)
 
 class LMCPLogger:
     """
     A custom logger for LMCP using Rich for better console output.
     """
     
-    def __init__(self, name: str = "LMCP"):
-        self.name = name
-        self.console = console
-        self._level = logging.INFO
+    def __init__(self, name: str = "LMCP") -> None:
+        self.name: str = name
+        self.console: Console = console
+        self._level: int = logging.INFO
+        self._logger: logging.Logger
         
         #  Set up the logger with RichHandler
         self._setup_logging()
     
-    def _setup_logging(self):
+    def _setup_logging(self) -> None:
         """Set up the logging configuration using RichHandler."""
         # Create a logger
         self._logger = logging.getLogger(self.name)
@@ -31,7 +36,7 @@ class LMCPLogger:
         self._logger.handlers.clear()
         
         #  Create a RichHandler for logging
-        rich_handler = RichHandler(
+        rich_handler: RichHandler = RichHandler(
             console=self.console,
             show_time=True,
             show_path=False,
@@ -50,9 +55,9 @@ class LMCPLogger:
         
         self._logger.addHandler(rich_handler)
     
-    def setLevel(self, level: str):
+    def setLevel(self, level: str) -> None:
         """Set the logging level"""
-        level_map = {
+        level_map: Dict[str, int] = {
             "DEBUG": logging.DEBUG,
             "INFO": logging.INFO,
             "WARNING": logging.WARNING,
@@ -67,48 +72,147 @@ class LMCPLogger:
             # Clear existing handlers and re-setup logging
             self._setup_logging()
     
-    def debug(self, message: str, **kwargs):
+    def debug(
+        self, 
+        message: str, 
+        *, 
+        exc_info: _ExcInfoType = None,
+        stack_info: bool = False,
+        stacklevel: int = 1,
+        extra: Optional[LoggingExtraDict] = None
+    ) -> None:
         """Debug - Gray"""
-        self._logger.debug(f"[dim]{message}[/dim]", **kwargs)
+        self._logger.debug(
+            f"[dim]{message}[/dim]", 
+            exc_info=exc_info,
+            stack_info=stack_info,
+            stacklevel=stacklevel,
+            extra=extra
+        )
     
-    def info(self, message: str, **kwargs):
+    def info(
+        self, 
+        message: str, 
+        *, 
+        exc_info: _ExcInfoType = None,
+        stack_info: bool = False,
+        stacklevel: int = 1,
+        extra: Optional[LoggingExtraDict] = None
+    ) -> None:
         """Info - Blue"""
-        self._logger.info(f"[blue]{message}[/blue]", **kwargs)
+        self._logger.info(
+            f"[blue]{message}[/blue]", 
+            exc_info=exc_info,
+            stack_info=stack_info,
+            stacklevel=stacklevel,
+            extra=extra
+        )
     
-    def success(self, message: str, **kwargs):
+    def success(
+        self, 
+        message: str, 
+        *, 
+        exc_info: _ExcInfoType = None,
+        stack_info: bool = False,
+        stacklevel: int = 1,
+        extra: Optional[LoggingExtraDict] = None
+    ) -> None:
         """Success - Green"""
-        self._logger.info(f"[green]✓[/green] {message}", **kwargs)
+        self._logger.info(
+            f"[green]✓[/green] {message}", 
+            exc_info=exc_info,
+            stack_info=stack_info,
+            stacklevel=stacklevel,
+            extra=extra
+        )
     
-    def warning(self, message: str, **kwargs):
+    def warning(
+        self, 
+        message: str, 
+        *, 
+        exc_info: _ExcInfoType = None,
+        stack_info: bool = False,
+        stacklevel: int = 1,
+        extra: Optional[LoggingExtraDict] = None
+    ) -> None:
         """Warning - Yellow"""
-        self._logger.warning(f"[yellow]⚠[/yellow] {message}", **kwargs)
+        self._logger.warning(
+            f"[yellow]⚠[/yellow] {message}", 
+            exc_info=exc_info,
+            stack_info=stack_info,
+            stacklevel=stacklevel,
+            extra=extra
+        )
     
-    def error(self, message: str, **kwargs):
+    def error(
+        self, 
+        message: str, 
+        *, 
+        exc_info: _ExcInfoType = None,
+        stack_info: bool = False,
+        stacklevel: int = 1,
+        extra: Optional[LoggingExtraDict] = None
+    ) -> None:
         """Error - Red"""
-        self._logger.error(f"[red]✗[/red] {message}", **kwargs)
+        self._logger.error(
+            f"[red]✗[/red] {message}", 
+            exc_info=exc_info,
+            stack_info=stack_info,
+            stacklevel=stacklevel,
+            extra=extra
+        )
     
-    def critical(self, message: str, **kwargs):
+    def critical(
+        self, 
+        message: str, 
+        *, 
+        exc_info: _ExcInfoType = None,
+        stack_info: bool = False,
+        stacklevel: int = 1,
+        extra: Optional[LoggingExtraDict] = None
+    ) -> None:
         """Critical - Bold Red"""
-        self._logger.critical(f"[bold red]💥 {message}[/bold red]", **kwargs)
+        self._logger.critical(
+            f"[bold red]💥 {message}[/bold red]", 
+            exc_info=exc_info,
+            stack_info=stack_info,
+            stacklevel=stacklevel,
+            extra=extra
+        )
     
-    def step(self, message: str, **kwargs):
+    def step(
+        self, 
+        message: str, 
+        *, 
+        exc_info: _ExcInfoType = None,
+        stack_info: bool = False,
+        stacklevel: int = 1,
+        extra: Optional[LoggingExtraDict] = None
+    ) -> None:
         """Step - Cyan"""
-        self._logger.info(f"[cyan]→[/cyan] {message}", **kwargs)
+        self._logger.info(
+            f"[cyan]→[/cyan] {message}", 
+            exc_info=exc_info,
+            stack_info=stack_info,
+            stacklevel=stacklevel,
+            extra=extra
+        )
     
-    def print(self, *args, **kwargs):
+    def print(self, *args: Any, **kwargs: Any) -> None:
         """ Print messages to the console using Rich's print method."""
         self.console.print(*args, **kwargs)
     
-    def print_panel(self, content: str, title: Optional[str] = None, **kwargs):
+    def print_panel(self, content: str, title: Optional[str] = None, **kwargs: Any) -> None:
         """Print a panel with content and an optional title."""
         from rich.panel import Panel
-        self.console.print(Panel(content, title=title, **kwargs))
+        panel: Panel = Panel(content, title=title, **kwargs)
+        self.console.print(panel)
     
-    def print_table(self, table, **kwargs):
+    def print_table(self, table: Table, **kwargs: Any) -> None:
         """Print a Rich table."""
         self.console.print(table, **kwargs)
     
-    def separator(self, text: Optional[str] = None):
+    def separator(self, text: Optional[str] = None) -> None:
         """Print a separator line with optional text."""
         from rich.rule import Rule
         if text:
@@ -117,5 +221,5 @@ class LMCPLogger:
             self.console.print(Rule())
 
 # Initialize the global logger instance
-logger = LMCPLogger()
+logger: LMCPLogger = LMCPLogger()
 
