@@ -1,7 +1,9 @@
 import ruamel.yaml
+from ruamel.yaml.comments import CommentedMap
+import textwrap
 from pathlib import Path
-from typing import Optional, Union
-from pydantic import ValidationError
+from typing import Any, Dict, Type, Union, Optional
+from pydantic import BaseModel, ValidationError
 
 from lmcp.schemas.config import ClusterConfig, NetworkConfig, ImagesConfig, ContainerEnvConfig, VelocityConfig
 from lmcp.core.logger import logger
@@ -158,11 +160,8 @@ class ConfigManager:
             
             logger.debug(f"Created default config object for project: {project_name}")
             
-            # Convert to dictionary for YAML generation
-            config_dict = default_config.model_dump()
-            
-            # Generate YAML with comments
-            self._generate_yaml_with_comments(config_dict, config_path, project_name)
+            # Use new, simpler method to generate YAML with comments
+            self._generate_yaml_with_comments(default_config, config_path)
             
             logger.success(f"Generated default configuration file: {config_path}")
             logger.debug(f"Configuration contains project '{project_name}' with network '{project_name}_net'")
@@ -172,213 +171,91 @@ class ConfigManager:
             logger.error(f"Failed to generate default configuration at {config_path}: {e}")
             raise
     
-    def _generate_yaml_with_comments(self, config_dict: dict, config_path: Path, project_name: str):
+    def _generate_yaml_with_comments(self, config_model: BaseModel, config_path: Path):
         """
-        Generate YAML file with comments using ruamel.yaml
-        Automatically extracts descriptions from Pydantic model schema
+        Generate YAML file with comments by directly inspecting Pydantic model fields.
         """
-        # Get the schema from ClusterConfig model
-        schema = ClusterConfig.model_json_schema()
+        # 1. Convert Pydantic model instance to pure Python dictionary
+        config_dict = config_model.model_dump(mode='python')
         
-        # Create a CommentedMap for the root with schema-based comments
-        yaml_data = self._convert_to_commented_structure(config_dict, schema)
+        # 2. Starting from model class (Type), recursively convert dictionary to commented structure
+        yaml_data = self._add_comments_recursively(config_dict, type(config_model))
         
-        # Add header comments
-        self._add_yaml_header_comment(yaml_data)
-        
-        # Add some spacing for better readability
-        self._add_section_spacing(yaml_data)
-        
-        # Write YAML with comments
-        with open(config_path, 'w', encoding='utf-8') as f:
-            self.yaml.dump(yaml_data, f)
-
-    def _convert_to_commented_structure(self, data, current_schema=None, parent_key=None):
-        """
-        Recursively convert dict/list to CommentedMap/CommentedSeq and add schema-based comments
-        """
-        if isinstance(data, dict):
-            return self._process_dict_with_comments(data, current_schema, parent_key)
-        elif isinstance(data, list):
-            return self._process_list_with_comments(data, current_schema, parent_key)
-        else:
-            return data
-
-    def _process_dict_with_comments(self, data: dict, current_schema=None, parent_key=None):
-        """
-        Process dictionary and add comments from schema
-        """
-        cm = ruamel.yaml.CommentedMap()
-        properties_schema = self._extract_properties_schema(current_schema, parent_key)
-        
-        for key, value in data.items():
-            key_schema = self._resolve_key_schema(key, properties_schema, current_schema)
-            
-            # Recursively process the value
-            cm[key] = self._convert_to_commented_structure(value, key_schema, key)
-            
-            # Add comment if description exists
-            self._add_field_comment(cm, key, key_schema)
-            
-            logger.debug(f"Processed key '{key}' with schema: {bool('description' in key_schema)}")
-        
-        return cm
-
-    def _process_list_with_comments(self, data: list, current_schema=None, parent_key=None):
-        """
-        Process list and convert to CommentedSeq
-        """
-        cl = ruamel.yaml.CommentedSeq()
-        items_schema = self._get_items_schema(current_schema)
-        
-        for item in data:
-            cl.append(self._convert_to_commented_structure(item, items_schema, parent_key))
-        
-        return cl
-
-    def _extract_properties_schema(self, current_schema, parent_key):
-        """
-        Extract properties schema for current level
-        """
-        properties_schema = {}
-        if not current_schema:
-            return properties_schema
-            
-        if 'properties' in current_schema:
-            properties_schema = current_schema['properties']
-        elif '$defs' in current_schema and parent_key:
-            # Handle nested model references
-            for def_name, def_schema in current_schema['$defs'].items():
-                if 'properties' in def_schema:
-                    properties_schema = def_schema['properties']
-                    break
-        
-        return properties_schema
-
-    def _resolve_key_schema(self, key: str, properties_schema: dict, current_schema):
-        """
-        Resolve schema for a specific key, handling $ref references
-        """
-        key_schema = properties_schema.get(key, {})
-        
-        # If the field has its own description, use it directly and don't resolve $ref
-        if 'description' in key_schema:
-            # For fields with their own description, we want to use that description
-            # but still need the nested structure for recursive processing
-            if '$ref' in key_schema and current_schema and '$defs' in current_schema:
-                ref_path = key_schema['$ref']
-                if ref_path.startswith('#/$defs/'):
-                    def_name = ref_path.split('/')[-1]
-                    if def_name in current_schema['$defs']:
-                        ref_schema = current_schema['$defs'][def_name]
-                        # Merge field description with referenced schema structure
-                        merged_schema = ref_schema.copy()
-                        merged_schema['description'] = key_schema['description']
-                        return merged_schema
-            return key_schema
-        
-        # Handle $ref references to nested models only when no field description exists
-        if '$ref' in key_schema and current_schema and '$defs' in current_schema:
-            ref_path = key_schema['$ref']
-            if ref_path.startswith('#/$defs/'):
-                def_name = ref_path.split('/')[-1]
-                if def_name in current_schema['$defs']:
-                    key_schema = current_schema['$defs'][def_name]
-        
-        return key_schema
-
-    def _get_items_schema(self, current_schema):
-        """
-        Get items schema for array types
-        """
-        if current_schema and 'items' in current_schema:
-            return current_schema['items']
-        return None
-
-    def _add_field_comment(self, commented_map, key: str, key_schema: dict):
-        """
-        Add comment to a field if description exists in schema
-        """
-        if 'description' not in key_schema:
-            return
-            
-        description = key_schema['description']
-        comment_text = self._format_description_for_comment(description)
-        commented_map.yaml_set_comment_before_after_key(key, before=comment_text)
-
-    def _format_description_for_comment(self, description: str) -> str:
-        """
-        Format description text for YAML comments, handling long lines and multi-line text
-        """
-        if '\n' not in description and len(description) <= 80:
-            return description
-            
-        lines = []
-        for line in description.split('\n'):
-            if len(line) <= 80:
-                lines.append(line)
-            else:
-                lines.extend(self._wrap_long_line(line))
-        
-        return '\n'.join(lines)
-
-    def _wrap_long_line(self, line: str) -> list:
-        """
-        Word wrap a long line to fit within 80 characters
-        """
-        words = line.split()
-        wrapped_lines = []
-        current_line = ""
-        
-        for word in words:
-            test_line = f"{current_line} {word}" if current_line else word
-            if len(test_line) <= 80:
-                current_line = test_line
-            else:
-                if current_line:
-                    wrapped_lines.append(current_line)
-                current_line = word
-        
-        if current_line:
-            wrapped_lines.append(current_line)
-        
-        return wrapped_lines
-
-    def _add_yaml_header_comment(self, yaml_data):
-        """
-        Add header comment to YAML file
-        """
+        # 3. Add file header
         yaml_data.yaml_set_start_comment(
             "===================================================\n"
             "LMCP Configuration\n"
             "Generated by `lmcp init`\n"
             "==================================================="
         )
-    
-    def _add_section_spacing(self, yaml_data):
-        """
-        Add spacing between major sections for better readability
-        """
-        # Define major sections that should have extra spacing
-        major_sections = ['container_env', 'velocity', 'active_servers']
         
-        for section in major_sections:
-            if section in yaml_data:
-                # Check if there's already a comment for this section
-                existing_comment = None
-                if hasattr(yaml_data, 'ca') and yaml_data.ca.items and section in yaml_data.ca.items:
-                    comment_info = yaml_data.ca.items[section]
-                    if comment_info and len(comment_info) > 1 and comment_info[1]:
-                        existing_comment = comment_info[1]
+        # 4. Write to file
+        with open(config_path, 'w', encoding='utf-8') as f:
+            self.yaml.dump(yaml_data, f)
+
+    def _add_comments_recursively(self, data: Any, model: Type[BaseModel]) -> Any:
+        """
+        [Core Function]
+        Recursively convert dictionary to CommentedMap and add comments from Pydantic model fields.
+        """
+        if not isinstance(data, dict):
+            # If data is not a dictionary (e.g., list, string, number), return directly
+            # Note: This simplified version doesn't handle comments for complex objects within lists
+            return data
+
+        commented_map = ruamel.yaml.CommentedMap()
+        
+        # Iterate through each key-value pair in the data dictionary
+        for key, value in data.items():
+            # Get corresponding field information from Pydantic model
+            field_info = model.model_fields.get(key)
+            
+            if field_info:
+                # Check field annotation to see if it's a nested Pydantic model
+                # field_info.annotation is the field type, e.g. NetworkConfig, Optional[List[str]]
+                nested_model = self._get_nested_model_type(field_info.annotation)
                 
-                if existing_comment:
-                    # If there's already a comment, add extra spacing
-                    if hasattr(existing_comment, 'value'):
-                        if not existing_comment.value.startswith('\n'):
-                            existing_comment.value = '\n' + existing_comment.value
+                if nested_model:
+                    # If value is a dictionary and field type is another Pydantic model, recursively process
+                    commented_map[key] = self._add_comments_recursively(value, nested_model)
                 else:
-                    # Add a simple spacing comment if no description exists
-                    yaml_data.yaml_set_comment_before_after_key(section, before='\n')
+                    # Otherwise, assign directly
+                    commented_map[key] = value
+
+                # Add comment (if field has description)
+                if field_info.description:
+                    comment = self._format_comment(field_info.description)
+                    commented_map.yaml_set_comment_before_after_key(key, before='\n' + comment)
+            else:
+                 # If field not found in model (theoretically shouldn't happen), assign directly
+                commented_map[key] = value
+                
+        return commented_map
+
+    def _get_nested_model_type(self, annotation: Any) -> Optional[Type[BaseModel]]:
+        """
+        Extract Pydantic model class from field type annotation.
+        For example, extract NetworkConfig from Union[NetworkConfig, None].
+        """
+        # Handle Optional[SomeModel], i.e., Union[SomeModel, None]
+        if hasattr(annotation, '__origin__') and annotation.__origin__ is Union:
+            for arg in annotation.__args__:
+                if isinstance(arg, type) and issubclass(arg, BaseModel):
+                    return arg
+        # Handle direct model types, like NetworkConfig
+        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            return annotation
+        return None
+
+    def _format_comment(self, description: str) -> str:
+        """
+        Use textwrap to format comments for better appearance.
+        """
+        # textwrap elegantly handles multi-line and long text
+        return '\n'.join(
+            textwrap.fill(line, width=80, subsequent_indent='  ', drop_whitespace=True)
+            for line in description.strip().split('\n')
+        )
     
     def find_config_file(self, start_path: Optional[Union[str, Path]] = None) -> Optional[Path]:
         """

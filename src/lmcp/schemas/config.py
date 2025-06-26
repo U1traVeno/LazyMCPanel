@@ -5,10 +5,11 @@ from typing import List, Optional
 class NetworkConfig(BaseModel):
     """Network configuration for the cluster."""
     name: str = Field(
-        description="\nNetwork name for the cluster. In most cases, you can keep it as is. "
-                   "This name will be used in the generated podman-compose.yml. "
-                   "It should be unique within the LMCP environment. "
-                   "If you have multiple clusters, ensure they use different network names."
+        description="Network name for the cluster. \n"
+                    "In most cases, you can keep it as is. "
+                    "This name will be used in the generated podman-compose.yml. "
+                    "It should be unique within the LMCP environment. "
+                    "If you have multiple clusters, ensure they use different network names."
     )
 
 
