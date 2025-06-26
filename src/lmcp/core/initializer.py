@@ -3,6 +3,7 @@ import logging
 import typer
 
 from lmcp.core.logger import logger
+from lmcp.core.config import generate_default_config
 
 def initialize(help: bool = False, directory: str = ".") -> None:
     """
@@ -59,12 +60,18 @@ def _create_config_file(file: str) -> bool:
     """
     Create a default configuration file at the specified path.
     """
-    with open(file, 'w') as f:
-        # Write default configuration content
-        f.write("# TEST\n")
-    logger.debug(f"Configuration file created at: {file}")
-    
-    return True
+    try:
+        # Extract directory name as project name
+        directory = os.path.dirname(file)
+        project_name = os.path.basename(os.path.abspath(directory)) if directory != '.' else 'my_lazy_cluster'
+        
+        # Use the config manager to generate default configuration
+        generate_default_config(project_name=project_name, config_path=file)
+        logger.debug(f"Configuration file created at: {file}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to generate default configuration: {e}")
+        raise
 
 def _create_directories(directory: str) -> bool:
     """
