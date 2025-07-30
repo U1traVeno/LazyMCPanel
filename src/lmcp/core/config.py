@@ -73,7 +73,7 @@ class ConfigManager:
             # Unpack YAML data into ClusterConfig model
             config: ClusterConfig = ClusterConfig(**yaml_data) # type: ignore[call-arg]
             logger.info(f"Successfully loaded and validated configuration from {config_path}")
-            logger.debug(f"Project name: {config.project_name}")
+            logger.debug(f"Project name: {config.cluster_name}")
             logger.debug(f"Active servers: {config.active_servers}")
             return config
         except ValidationError as e:
@@ -111,7 +111,7 @@ class ConfigManager:
                 self.yaml.dump(config_dict, f) # type: ignore[no-any-return]
                 
             logger.info(f"Successfully saved configuration to {config_path}")
-            logger.debug(f"Saved config for project: {config.project_name}")
+            logger.debug(f"Saved config for project: {config.cluster_name}")
             return config_path
             
         except Exception as e:
@@ -147,18 +147,7 @@ class ConfigManager:
         # Create default configuration using Pydantic models
         try:
             # Create default configuration object
-            default_config = ClusterConfig(
-                project_name=project_name,
-                lmcp_dir=".lmcp",
-                servers_dir="servers", 
-                templates_dir="templates",
-                container_env=ContainerEnvConfig(
-                    network=NetworkConfig(name=f"{project_name}_net"),
-                    images=ImagesConfig()  # Uses default values from model
-                ),
-                velocity=VelocityConfig(),  # Uses default values from model
-                active_servers=[]
-            )
+            default_config = ClusterConfig()
             
             logger.debug(f"Created default config object for project: {project_name}")
             

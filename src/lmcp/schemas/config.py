@@ -5,6 +5,7 @@ from typing import List, Optional
 class NetworkConfig(BaseModel):
     """Network configuration for the cluster."""
     name: str = Field(
+        default="MyLMCPNetwork",
         description="Network name for the cluster. \n"
                     "In most cases, you can keep it as is. "
                     "This name will be used in the generated podman-compose.yml. "
@@ -28,9 +29,11 @@ class ImagesConfig(BaseModel):
 class ContainerEnvConfig(BaseModel):
     """Container environment configuration."""
     network: NetworkConfig = Field(
+        default=NetworkConfig(),
         description="Network configuration"
     )
     images: ImagesConfig = Field(
+        default=ImagesConfig(),
         description="\nPodman/Docker Image Configuration. \n"
                    "In most cases, you can keep the default values. "
                    "This section defines the images used for different Java versions. "
@@ -58,8 +61,9 @@ class ClusterConfig(BaseModel):
     """
     Configuration for the LMCP cluster.
     """
-    project_name: str = Field(
-        description="\nName of the LMCP project"
+    cluster_name: str = Field(
+        default="My LMCP Cluster",
+        description="\nName of the LMCP cluster"
     )
     lmcp_dir: str = Field(
         default=".lmcp",
@@ -74,9 +78,11 @@ class ClusterConfig(BaseModel):
         description="\nDirectory containing server templates"
     )
     container_env: ContainerEnvConfig = Field(
+        default=ContainerEnvConfig(),
         description="\nCluster Container Environment Configuration"
     )
     velocity: VelocityConfig = Field(
+        default=VelocityConfig(),
         description="\nVelocity Configuration"
     )
     active_servers: Optional[List[str]] = Field(

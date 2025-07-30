@@ -54,7 +54,22 @@ def init(
     Initialize the LMCP workspace.
     """
     initialize(help=help, directory=directory)
-
+    
+@app.command()
+def build(
+    help: bool = typer.Option(False, "--help", "-h", help="Show this message and exit."),
+    directory: str = typer.Option(".", "--directory", "-d", help="Directory to build the LMCP workspace."),
+    config: str = typer.Option("lmcp.yaml", "--config", "-c", help="Path to the configuration file.")
+):
+    """
+    Build LMCP servers cluster based on server configuration.
+    Defaults to the configuration files in templates/ directory.
+    """
+    # Here you would implement the build logic, e.g., reading the config file
+    # and building the servers based on the templates.
+    logger.info(f"Building LMCP servers cluster in directory: {directory} with config: {config}")
+    # Placeholder for actual build logic
+    console.print(f"[bold green]Building LMCP servers cluster...[/bold green]")
 
 def _show_version():
     """Show the version information of LMCP"""
