@@ -19,12 +19,13 @@ readme = "README.md"
 requires-python = ">=3.12"
 
 dependencies = [
-    "typer[all]",
+    "typer",
     "rich",
     "textual",
     "pydantic",
     "pydantic-settings",
     "pyyaml",
+    "ruamel-yaml>=0.18.14",
 ]
 
 [project.urls]
