@@ -1,5 +1,13 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict
+
+
+class ServerConfig(BaseModel):
+    """Configuration for a single Minecraft server."""
+    java_version: str = Field(
+        default="java21",
+        description="Java Version for the server (must be a key in the 'images' mapping, e.g., 'java8', 'java21')."
+    )
 
 
 class NetworkConfig(BaseModel):
@@ -29,11 +37,11 @@ class ImagesConfig(BaseModel):
 class ContainerEnvConfig(BaseModel):
     """Container environment configuration."""
     network: NetworkConfig = Field(
-        default=NetworkConfig(),
+        default_factory=NetworkConfig,
         description="Network configuration"
     )
     images: ImagesConfig = Field(
-        default=ImagesConfig(),
+        default_factory=ImagesConfig,
         description="\nPodman/Docker Image Configuration. \n"
                    "In most cases, you can keep the default values. "
                    "This section defines the images used for different Java versions. "
@@ -78,15 +86,24 @@ class ClusterConfig(BaseModel):
         description="\nDirectory containing server templates"
     )
     container_env: ContainerEnvConfig = Field(
-        default=ContainerEnvConfig(),
+        default_factory=ContainerEnvConfig,
         description="\nCluster Container Environment Configuration"
     )
     velocity: VelocityConfig = Field(
-        default=VelocityConfig(),
+        default_factory=VelocityConfig,
         description="\nVelocity Configuration"
+    )
+    servers: Dict[str, ServerConfig] = Field(
+        default_factory=lambda: {
+            "lobby": ServerConfig(java_version="java21"),
+            "survival": ServerConfig(java_version="java8")
+        },
+        description="\nDefines the servers to be included in the cluster. "
+                    "The key for each entry (e.g., 'lobby') must correspond to a directory with the same name inside the 'servers_dir'."
     )
     active_servers: Optional[List[str]] = Field(
         default=None,
-        description="\nList of active servers in the cluster's servers directory."
+        description="\nList of active servers. If defined, only servers from this list will be started. "
+                    "If not defined, all servers in the 'servers' section will be started."
     )
     

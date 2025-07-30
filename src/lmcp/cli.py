@@ -2,10 +2,13 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
+from pathlib import Path
 
 from lmcp.core.initializer import initialize 
 from lmcp.core.logger import logger
 from lmcp.__version__ import __version__, __title__, __description__
+from lmcp.core.config import config_manager
+from lmcp.core.orchestrator import Orchestrator
 
 console = Console()
 
@@ -54,6 +57,80 @@ def init(
     Initialize the LMCP workspace.
     """
     initialize(help=help, directory=directory)
+
+@app.command()
+def up(
+    ctx: typer.Context,
+):
+    """
+    Generates a compose file and starts the server cluster in the background.
+    """
+    logger.step("Starting 'up' command...")
+    
+    # The command should be run from within the project directory.
+    # We find the config file upwards from the current directory.
+    project_root = Path.cwd()
+    config_file_path = config_manager.find_config_file(project_root)
+    
+    if not config_file_path:
+        logger.error("No 'lmcp.yaml' found in the current directory or any parent directory.")
+        logger.error("Please run 'lmcp init' first or run the command in a valid project directory.")
+        raise typer.Exit(code=1)
+        
+    logger.info(f"Using configuration file: {config_file_path}")
+    
+    try:
+        # The project root is the directory containing the config file.
+        project_root_from_config = config_file_path.parent
+        logger.debug(f"Project root identified as: {project_root_from_config}")
+        
+        # Load config
+        config = config_manager.load_config(config_file_path)
+        
+        # Instantiate and run orchestrator
+        orchestrator = Orchestrator(config, project_root=project_root_from_config)
+        orchestrator.up()
+        
+    except Exception as e:
+        logger.error(f"An error occurred during the 'up' process: {e}")
+        if ctx.meta.get("debug"):
+            # The orchestrator already logs the traceback for critical errors
+            pass
+        raise typer.Exit(code=1)
+
+@app.command()
+def down(
+    ctx: typer.Context,
+):
+    """
+    Stops and removes the containers and networks for the server cluster.
+    """
+    logger.step("Starting 'down' command...")
+    
+    project_root = Path.cwd()
+    config_file_path = config_manager.find_config_file(project_root)
+    
+    if not config_file_path:
+        logger.error("No 'lmcp.yaml' found in the current directory or any parent directory.")
+        logger.error("Please run the command in a valid project directory.")
+        raise typer.Exit(code=1)
+        
+    logger.info(f"Using configuration file: {config_file_path}")
+    
+    try:
+        project_root_from_config = config_file_path.parent
+        logger.debug(f"Project root identified as: {project_root_from_config}")
+        
+        config = config_manager.load_config(config_file_path)
+        
+        orchestrator = Orchestrator(config, project_root=project_root_from_config)
+        orchestrator.down()
+        
+    except Exception as e:
+        logger.error(f"An error occurred during the 'down' process: {e}")
+        if ctx.meta.get("debug"):
+            pass
+        raise typer.Exit(code=1)
     
 @app.command()
 def build(
@@ -93,6 +170,8 @@ def _show_help():
 
 [bold green]Commands:[/bold green]
   [blue]init[/blue]    Initialize the LMCP workspace
+  [blue]up[/blue]      Generate a compose file and start the server cluster
+  [blue]down[/blue]    Stop and remove the containers and networks for the cluster
 
 [bold green]Options:[/bold green]
   [blue]--help, -h[/blue]     Show this message and exit
