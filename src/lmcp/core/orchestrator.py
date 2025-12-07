@@ -1,6 +1,7 @@
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from ruamel.yaml import YAML
 
@@ -31,7 +32,167 @@ class Orchestrator:
         logger.error("Neither 'podman-compose' nor 'docker-compose' found in PATH.")
         raise FileNotFoundError("Neither 'podman-compose' nor 'docker-compose' found in PATH.")
 
-    def _generate_compose_dict(self) -> dict:
+    def _get_container_runtime(self) -> str:
+        """
+        Detects which container runtime (podman or docker) is available on the system.
+        """
+        for cmd in ["podman", "docker"]:
+            if shutil.which(cmd):
+                logger.debug(f"Found container runtime: {cmd}")
+                return cmd
+        logger.error("Neither 'podman' nor 'docker' found in PATH.")
+        raise FileNotFoundError("Neither 'podman' nor 'docker' found in PATH.")
+
+    def _get_required_images(self) -> set[str]:
+        """
+        Get the set of all required images for the cluster.
+        """
+        images: set[str] = set()
+        
+        # Add velocity image
+        velocity_image_key = self.config.velocity.java_version
+        try:
+            velocity_image = getattr(self.config.container_env.images, velocity_image_key)
+            images.add(velocity_image)
+            logger.debug(f"Required image for velocity: {velocity_image}")
+        except AttributeError:
+            logger.error(f"Image key '{velocity_image_key}' for Velocity not found in images config.")
+            raise ValueError(f"Image key '{velocity_image_key}' for Velocity not found in images config.")
+        
+        # Determine active servers
+        if self.config.active_servers is None:
+            active_server_names = list(self.config.servers.keys())
+        else:
+            active_server_names = [name for name in self.config.active_servers if name in self.config.servers]
+        
+        # Add server images
+        for server_name in active_server_names:
+            server_config = self.config.servers[server_name]
+            server_image_key = server_config.java_version
+            try:
+                server_image = getattr(self.config.container_env.images, server_image_key)
+                images.add(server_image)
+                logger.debug(f"Required image for server '{server_name}': {server_image}")
+            except AttributeError:
+                logger.error(f"Image key '{server_image_key}' for server '{server_name}' not found in images config.")
+                raise ValueError(f"Image key '{server_image_key}' for server '{server_name}' not found in images config.")
+        
+        return images
+
+    def _check_image_exists(self, image_name: str, runtime: str) -> bool:
+        """
+        Check if a Docker/Podman image exists locally.
+        """
+        try:
+            process = subprocess.run(
+                [runtime, "images", "-q", image_name],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            exists = bool(process.stdout.strip())
+            logger.debug(f"Image '{image_name}' exists: {exists}")
+            return exists
+        except Exception as e:
+            logger.warning(f"Failed to check if image '{image_name}' exists: {e}")
+            return False
+
+    def _build_image(self, image_name: str, runtime: str) -> bool:
+        """
+        Build a Docker/Podman image from the assets directory.
+        Returns True if successful, False otherwise.
+        """
+        # Extract the image tag (e.g., "jre21-py312" from "localhost/lmcp:jre21-py312")
+        try:
+            tag = image_name.split(":")[-1]
+            logger.info(f"Building image '{image_name}' from tag '{tag}'...")
+            
+            # Get the project root (where src/ directory is located)
+            # Go up from src/lmcp/core to project root
+            project_root = Path(__file__).parent.parent.parent.parent
+            dockerfile_dir = project_root / "src" / "lmcp" / "assets" / "containers" / tag
+            
+            if not dockerfile_dir.exists():
+                logger.error(f"Dockerfile directory not found: {dockerfile_dir}")
+                return False
+            
+            dockerfile_path = dockerfile_dir / "Dockerfile"
+            if not dockerfile_path.exists():
+                logger.error(f"Dockerfile not found: {dockerfile_path}")
+                return False
+            
+            logger.debug(f"Building from: {dockerfile_path}")
+            logger.debug(f"Build context: {project_root}")
+            
+            # Build the image
+            cmd_args = [
+                runtime, "build",
+                "-t", image_name,
+                "-f", str(dockerfile_path),
+                str(project_root)
+            ]
+            
+            logger.info(f"Executing: {' '.join(cmd_args)}")
+            
+            process = subprocess.run(
+                cmd_args,
+                cwd=project_root,
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            
+            if process.returncode == 0:
+                logger.success(f"Successfully built image: {image_name}")
+                if process.stdout:
+                    logger.debug(f"Build output:\n{process.stdout.strip()}")
+                return True
+            else:
+                logger.error(f"Failed to build image: {image_name}")
+                logger.error(f"Return Code: {process.returncode}")
+                if process.stdout:
+                    logger.error(f"Stdout:\n{process.stdout.strip()}")
+                if process.stderr:
+                    logger.error(f"Stderr:\n{process.stderr.strip()}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error building image '{image_name}': {e}")
+            return False
+
+    def _ensure_images_exist(self):
+        """
+        Check if all required images exist, and build them if they don't.
+        """
+        try:
+            runtime = self._get_container_runtime()
+            required_images = self._get_required_images()
+            
+            logger.step("Checking required container images...")
+            missing_images: list[str] = []
+            
+            for image in required_images:
+                if not self._check_image_exists(image, runtime):
+                    logger.warning(f"Image '{image}' not found locally.")
+                    missing_images.append(image)
+                else:
+                    logger.debug(f"Image '{image}' found locally.")
+            
+            if missing_images:
+                logger.info(f"Found {len(missing_images)} missing image(s). Building...")
+                for image in missing_images:
+                    logger.step(f"Building image: {image}")
+                    if not self._build_image(image, runtime):
+                        raise RuntimeError(f"Failed to build required image: {image}")
+                logger.success("All missing images have been built successfully.")
+            else:
+                logger.success("All required images are available locally.")
+                
+        except Exception as e:
+            logger.error(f"Error ensuring images exist: {e}")
+            raise
+
+    def _generate_compose_dict(self) -> dict[str, Any]:
         """
         Generates the full compose configuration as a Python dictionary.
         """
@@ -120,6 +281,9 @@ class Orchestrator:
         Generates the compose file and starts the cluster in detached mode.
         """
         try:
+            # Step 0: Ensure all required images exist (build if necessary)
+            self._ensure_images_exist()
+            
             # Step 1: Generate the configuration dictionary
             logger.step("Generating compose configuration...")
             compose_dict = self._generate_compose_dict()
