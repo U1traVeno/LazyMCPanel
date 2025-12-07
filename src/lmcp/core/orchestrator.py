@@ -226,11 +226,15 @@ class Orchestrator:
             logger.error(f"Image key '{velocity_image_key}' for Velocity not found in images config.")
             raise ValueError(f"Image key '{velocity_image_key}' for Velocity not found in images config.")
 
+        velocity_venv_volume = f"{cfg.cluster_name.lower().replace(' ', '-')}-{cfg.velocity.service_name}-venv"
         services[cfg.velocity.service_name] = {
             "image": velocity_image,
             "container_name": f"{cfg.cluster_name.lower().replace(' ', '-')}-{cfg.velocity.service_name}",
             "ports": [f"{cfg.velocity.port}:25565"],  # Standard velocity port is 25565
-            "volumes": [f"../{cfg.servers_dir}/{cfg.velocity.service_name}:/app"],
+            "volumes": [
+                f"../{cfg.servers_dir}/{cfg.velocity.service_name}:/app:Z",
+                f"{velocity_venv_volume}:/app/.venv"
+            ],
             "networks": [network_name],
             "restart": "unless-stopped",
             "stdin_open": True,
@@ -249,10 +253,14 @@ class Orchestrator:
                 logger.error(f"Image key '{server_image_key}' for server '{server_name}' not found in images config.")
                 raise ValueError(f"Image key '{server_image_key}' for server '{server_name}' not found in images config.")
 
+            server_venv_volume = f"{cfg.cluster_name.lower().replace(' ', '-')}-{server_name}-venv"
             services[server_name] = {
                 "image": server_image,
                 "container_name": f"{cfg.cluster_name.lower().replace(' ', '-')}-{server_name}",
-                "volumes": [f"../{cfg.servers_dir}/{server_name}:/app"],
+                "volumes": [
+                    f"../{cfg.servers_dir}/{server_name}:/app:Z",
+                    f"{server_venv_volume}:/app/.venv"
+                ],
                 "networks": [network_name],
                 "restart": "unless-stopped",
                 "stdin_open": True,
@@ -268,10 +276,24 @@ class Orchestrator:
             }
         }
 
+        # 5. Volume Definition
+        logger.debug("Generating volume configuration.")
+        volumes = {}
+        
+        # Add velocity venv volume
+        velocity_venv_volume = f"{cfg.cluster_name.lower().replace(' ', '-')}-{cfg.velocity.service_name}-venv"
+        volumes[velocity_venv_volume] = {"driver": "local"}
+        
+        # Add server venv volumes
+        for server_name in active_server_names:
+            server_venv_volume = f"{cfg.cluster_name.lower().replace(' ', '-')}-{server_name}-venv"
+            volumes[server_venv_volume] = {"driver": "local"}
+
         compose_dict = {
             "version": "3.8",
             "services": services,
             "networks": networks,
+            "volumes": volumes,
         }
         logger.debug("Finished generating compose dictionary.")
         return compose_dict
